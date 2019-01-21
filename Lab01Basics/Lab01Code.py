@@ -18,6 +18,7 @@
 #           be imported.
 
 import petlib
+from hashlib import sha256
 
 #####################################################
 # TASK 2 -- Symmetric encryption using AES-GCM 
@@ -34,18 +35,22 @@ def encrypt_message(K, message):
     """ Encrypt a message under a key K """
 
     plaintext = message.encode("utf8")
-    
-    ## YOUR CODE HERE
+    aes = Cipher("aes-128-gcm")
+	iv = urandom(16)
+	ciphertext, tag = aes.quick_gcm_enc(K, iv, plaintext)
 
     return (iv, ciphertext, tag)
 
 def decrypt_message(K, iv, ciphertext, tag):
     """ Decrypt a cipher text under a key K 
 
-        In case the decryption fails, throw an exception.
-    """
+		In case the decryption fails, throw an exception.
+	"""
+	aes = Cipher("aes-128-gcm")
     ## YOUR CODE HERE
-
+	try:
+		plain = aes.quick_gcm_dec(K, iv, ciphertext, tag)
+		
     return plain.encode("utf8")
 
 #####################################################
@@ -88,7 +93,7 @@ def is_point_on_curve(a, b, p, x, y):
     return on_curve
 
 
-def point_add(a, b, p, x0, y0, x1, y1):
+def point_add(a, b, p, xq, yq, xp, yp):
     """Define the "addition" operation for 2 EC Points.
 
     Reminder: (xr, yr) = (xq, yq) + (xp, yp)
@@ -99,10 +104,13 @@ def point_add(a, b, p, x0, y0, x1, y1):
 
     Return the point resulting from the addition. Raises an Exception if the points are equal.
     """
-
+	if ((xq == xp) || (yq == yp))
+		raise ValueError("Points are equal")
     # ADD YOUR CODE BELOW
     xr, yr = None, None
-    
+    lam  = ((yq - yp) / (xq - xp)) % p
+    xr = (lam * lam - xp - xq) % p
+    yr = (lam * (xp - xr) - yp) % p
     return (xr, yr)
 
 def point_double(a, b, p, x, y):
@@ -119,7 +127,10 @@ def point_double(a, b, p, x, y):
 
     # ADD YOUR CODE BELOW
     xr, yr = None, None
-
+    lam = ((3 * x * x + a) / (2 * y)) % p
+    xr = lam * lam - 2 * x
+    yr = (lam * (x - xr) - y) % p
+	
     return xr, yr
 
 def point_scalar_multiplication_double_and_add(a, b, p, x, y, scalar):
@@ -136,12 +147,15 @@ def point_scalar_multiplication_double_and_add(a, b, p, x, y, scalar):
         return Q
 
     """
-    Q = (None, None)
+    Q = (0, 0)
     P = (x, y)
 
     for i in range(scalar.num_bits()):
-        pass ## ADD YOUR CODE HERE
-
+        if ((scalar >> i) & 1) == 1:
+            Q = (Q[0] + P[0], Q[1] + P[1])
+        P = point_double(a, b, p, P[0], P[1])
+    if Q == (0, 0):
+        Q = (None, None)
     return Q
 
 def point_scalar_multiplication_montgomerry_ladder(a, b, p, x, y, scalar):
@@ -162,12 +176,18 @@ def point_scalar_multiplication_montgomerry_ladder(a, b, p, x, y, scalar):
         return R0
 
     """
-    R0 = (None, None)
+    R0 = (0, 0)
     R1 = (x, y)
 
     for i in reversed(range(0,scalar.num_bits())):
-        pass ## ADD YOUR CODE HERE
-
+        if ((scalar >> i) & 1) == 1:
+            R1 = (R0[0] + R1[0], R0[1] + R1[1])
+            R0 = point_double(a, b, p, R0[0], R0[1])
+        else:
+            R1 = (R0[0] + R1[0], R0[1] + R1[1])
+            R0 = point_double(a, b, p, R1[0], R1[1])
+    if R0 == (0, 0):
+        R0 = (None, None)
     return R0
 
 
@@ -197,7 +217,8 @@ def ecdsa_sign(G, priv_sign, message):
     plaintext =  message.encode("utf8")
 
     ## YOUR CODE HERE
-
+    digest = sha1(plaintext).digest()
+    sig = do_ecdsa_sign(G, priv_sign, digest)
     return sig
 
 def ecdsa_verify(G, pub_verify, message, sig):
@@ -205,7 +226,7 @@ def ecdsa_verify(G, pub_verify, message, sig):
     plaintext =  message.encode("utf8")
 
     ## YOUR CODE HERE
-
+    do_ecdsa_verify(G, pub_verify, sig, plaintext)
     return res
 
 #####################################################
@@ -234,7 +255,10 @@ def dh_encrypt(pub, message, aliceSig = None):
     """
     
     ## YOUR CODE HERE
-    pass
+    G, priv_dec, pub_enc = dh_get_key()
+    shared = pow(G.generator(), pub) % pub_enc
+    iv, ciphertext, tag = encrypt_message(shared, message) 
+    return (iv, ciphertext, tag)
 
 def dh_decrypt(priv, ciphertext, aliceVer = None):
     """ Decrypt a received message encrypted using your public key, 
